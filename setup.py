@@ -9,7 +9,16 @@ setup(
     author_email='shouryagoel10000@gmail.com',
     license='Apache-2.0',
     packages=['quantize_specific'],
-    install_requires=[],
+    install_requires=[
+        'torch>=2.0.0',
+        'transformers>=4.36.0',
+        'datasets>=2.15.0',
+        'numpy>=1.24.0',
+        'tqdm>=4.65.0',
+        'accelerate>=0.26.0',
+        'zstandard>=0.21.0',
+        'rouge_score'
+    ],
     classifiers=[
         'Development Status :: 1 - Planning',
         'Intended Audience :: Science/Research',
