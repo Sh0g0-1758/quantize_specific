@@ -32,6 +32,7 @@ from transformers import (
     BitsAndBytesConfig,
     logging
 )
+
 from datasets import (
     load_dataset,
     IterableDataset
@@ -44,7 +45,6 @@ class ModelConfig:
     model_name: str
     model_family: str
     model_path: Optional[Path]
-
 
 @dataclass
 class QuantConfig:
@@ -59,7 +59,6 @@ class QuantConfig:
 @dataclass
 class LayerSwapConfig:
     skip_layers: Optional[List[int]]
-    
 
 def create_dtype_map() -> Dict[str, torch.device]:
     mapping = {
@@ -78,19 +77,17 @@ def load_config_from_json(
     json_file: Path,
     config_type: Literal["model", "quant", "layer_swap"]
 ) -> Iterator[QuantConfig]:
-    print(json_file)
     with open(json_file, "r", encoding="utf-8") as f:
         configs = json.load(f)
-    match config_type:
-        case "model":
-            for config in configs:
-                yield ModelConfig(**config)
-        case "quant":
-            for config in configs:
-                yield QuantConfig(**config)
-        case "layer_swap":
-            for config in configs:
-                yield LayerSwapConfig(**config)
+    if config_type == "model":
+        for config in configs:
+            yield ModelConfig(**config)
+    elif config_type == "quant":
+        for config in configs:
+            yield QuantConfig(**config)
+    elif config_type == "layer_swap":
+        for config in configs:
+            yield LayerSwapConfig(**config)
 
 def generate_decoder_map():
     decoder_map: Dict[str, str] = {
@@ -111,7 +108,6 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)           # PyTorch multi-GPU
     torch.backends.cudnn.deterministic = True  # Ensure deterministic behavior
     torch.backends.cudnn.benchmark = False     # Avoid non-deterministic optimizations
-
 
 class MemorizationAnalyser:
     def __init__(
