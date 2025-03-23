@@ -20,6 +20,7 @@ from transformers import (
 
 logging.set_verbosity_error()
 
+
 @dataclass
 class QuantConfig:
     level: Optional[int]
@@ -30,17 +31,19 @@ class QuantConfig:
     bnb_4bit_compute_dtype: Optional[torch.dtype]
     bnb_4bit_quant_type: Optional[str] = None
 
+
 def create_dtype_map() -> Dict[str, torch.device]:
     mapping = {
-        ("float16", "fp16") : torch.float16,
-        ("bfloat16",)       : torch.bfloat16,
-        ("float32", "fp32") : torch.float32,
+        ("float16", "fp16"): torch.float16,
+        ("bfloat16",): torch.bfloat16,
+        ("float32", "fp32"): torch.float32,
     }
     dtype_map = {}
     for keys, value in mapping.items():
         for key in keys:
             dtype_map[key] = value
     return dtype_map
+
 
 def generate_decoder_map():
     decoder_map: Dict[str, str] = {
@@ -51,7 +54,9 @@ def generate_decoder_map():
     }
     return decoder_map
 
+
 DecoderMap = generate_decoder_map()
+
 
 def set_seed(seed: int = 42):
     random.seed(seed)                          # Python random module
@@ -60,7 +65,9 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed(seed)               # PyTorch GPU
     torch.cuda.manual_seed_all(seed)           # PyTorch multi-GPU
     torch.backends.cudnn.deterministic = True  # Ensure deterministic behavior
-    torch.backends.cudnn.benchmark = False     # Avoid non-deterministic optimizations
+    # Avoid non-deterministic optimizations
+    torch.backends.cudnn.benchmark = False
+
 
 class MemorizationAnalyser:
     def __init__(
@@ -75,41 +82,42 @@ class MemorizationAnalyser:
         dtype_map: Dict = create_dtype_map(),
     ):
         if layer_swap_config is not None and swap_every is not None:
-            raise ValueError(f"Please specify only one of layer_swap_config or swap_every")
+            raise ValueError(
+                f"Please specify only one of layer_swap_config or swap_every")
 
         self.dataset = None
         self.device_map = device_map
-        
+
         self.dtype_map = dtype_map
         self.dtype = self.dtype_map[quant_config.bnb_4bit_compute_dtype]
-        
+
         self.load_in = "fp32"
         if quant_config.load_in_4bit:
-            self.load_in = "4bit/" +  quant_config.bnb_4bit_quant_type
+            self.load_in = "4bit/" + quant_config.bnb_4bit_quant_type
             if quant_config.bnb_4bit_use_double_quant:
                 self.load_in += "/double"
             else:
-                self.load_in += "/single" 
-                
+                self.load_in += "/single"
+
         elif quant_config.load_in_8bit:
             self.load_in = "8bit"
-        
+
         if quant_config.bnb_4bit_quant_type:
             self.quant_config = BitsAndBytesConfig(
-                load_in_4bit = quant_config.load_in_4bit,
-                bnb_4bit_quant_type = quant_config.bnb_4bit_quant_type,
-                load_in_8bit = quant_config.load_in_8bit,
-                bnb_4bit_use_double_quant = quant_config.bnb_4bit_use_double_quant,
-                bnb_4bit_compute_dtype = self.dtype
+                load_in_4bit=quant_config.load_in_4bit,
+                bnb_4bit_quant_type=quant_config.bnb_4bit_quant_type,
+                load_in_8bit=quant_config.load_in_8bit,
+                bnb_4bit_use_double_quant=quant_config.bnb_4bit_use_double_quant,
+                bnb_4bit_compute_dtype=self.dtype
             )
         else:
             self.quant_config = BitsAndBytesConfig(
-                load_in_4bit = quant_config.load_in_4bit,
-                load_in_8bit = quant_config.load_in_8bit,
-                bnb_4bit_use_double_quant = quant_config.bnb_4bit_use_double_quant,
-                bnb_4bit_compute_dtype = self.dtype
+                load_in_4bit=quant_config.load_in_4bit,
+                load_in_8bit=quant_config.load_in_8bit,
+                bnb_4bit_use_double_quant=quant_config.bnb_4bit_use_double_quant,
+                bnb_4bit_compute_dtype=self.dtype
             )
-        
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             padding_side="left",
@@ -117,55 +125,57 @@ class MemorizationAnalyser:
             clean_up_tokenization_spaces=True
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        
+
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            quantization_config = self.quant_config,
+            quantization_config=self.quant_config,
             device_map=self.device_map
         )
         self.model.eval()
 
         if quant_config_swap and (layer_swap_config or swap_every):
             self.dtype_swap = self.dtype_map[quant_config_swap.bnb_4bit_compute_dtype]
-            
+
             if quant_config.bnb_4bit_quant_type:
                 self.quant_config_swap = BitsAndBytesConfig(
-                    load_in_4bit = quant_config.load_in_4bit,
-                    bnb_4bit_quant_type = quant_config.bnb_4bit_quant_type,
-                    load_in_8bit = quant_config.load_in_8bit,
-                    bnb_4bit_use_double_quant = quant_config.bnb_4bit_use_double_quant,
-                    bnb_4bit_compute_dtype = self.dtype
+                    load_in_4bit=quant_config.load_in_4bit,
+                    bnb_4bit_quant_type=quant_config.bnb_4bit_quant_type,
+                    load_in_8bit=quant_config.load_in_8bit,
+                    bnb_4bit_use_double_quant=quant_config.bnb_4bit_use_double_quant,
+                    bnb_4bit_compute_dtype=self.dtype
                 )
             else:
                 self.quant_config_swap = BitsAndBytesConfig(
-                    load_in_4bit = quant_config.load_in_4bit,
-                    load_in_8bit = quant_config.load_in_8bit,
-                    bnb_4bit_use_double_quant = quant_config.bnb_4bit_use_double_quant,
-                    bnb_4bit_compute_dtype = self.dtype
+                    load_in_4bit=quant_config.load_in_4bit,
+                    load_in_8bit=quant_config.load_in_8bit,
+                    bnb_4bit_use_double_quant=quant_config.bnb_4bit_use_double_quant,
+                    bnb_4bit_compute_dtype=self.dtype
                 )
 
             if quant_config_swap.load_in_4bit:
-                self.load_in_swap = "4bit/" +  quant_config_swap.bnb_4bit_quant_type
+                self.load_in_swap = "4bit/" + quant_config_swap.bnb_4bit_quant_type
                 if quant_config_swap.bnb_4bit_use_double_quant:
                     self.load_in_swap += "/double"
-                else: self.load_in_swap += "/single"
-                
+                else:
+                    self.load_in_swap += "/single"
+
             elif quant_config_swap.load_in_8bit:
                 self.load_in_swap = "8bit"
-                
+
             self.model_swap = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                quantization_config = self.quant_config_swap,
+                quantization_config=self.quant_config_swap,
                 device_map=self.device_map
             )
             self.model_swap.eval()
             self.decoder_map = generate_decoder_map()
-            
+
             try:
                 decoders_1 = eval(f"self.model.{DecoderMap[model_family]}")
-                decoders_2 = eval(f"self.model_swap.{DecoderMap[model_family]}")
+                decoders_2 = eval(
+                    f"self.model_swap.{DecoderMap[model_family]}")
             except AttributeError as e:
-                    raise ValueError(f"Unsupported model family '{model_family}' \
+                raise ValueError(f"Unsupported model family '{model_family}' \
                         or invalid layer attribute: {e}")
 
             if layer_swap_config:
@@ -180,7 +190,7 @@ class MemorizationAnalyser:
                 os.makedirs(self.log_path, exist_ok=True)
                 for layer in self.layer_swap_config.skip_layers:
                     decoders_1[layer] = decoders_2[layer]
-                         
+
             elif swap_every:
                 print(f"swap_every: {swap_every}")
                 self.swap_every = swap_every
@@ -205,52 +215,52 @@ class MemorizationAnalyser:
                         raise ValueError("swap_every must be in the format 'x/y' \
                                         where x and y are positive integers: {e}")
 
-                        
         if (quant_config_swap is None and (layer_swap_config is not None or swap_every is not None)) or \
-            (quant_config_swap is not None and layer_swap_config is None and swap_every is None):
+                (quant_config_swap is not None and layer_swap_config is None and swap_every is None):
             raise ValueError(f"Please provide both quant_config_swap and either layer_swap_config or swap_every,\
                             but not both.")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description = "Analyze degree of memorization for a specified model and dataset, \
+        description="Analyze degree of memorization for a specified model and dataset, \
             varying quantization parameters"
     )
     parser.add_argument(
-        "--model-config", 
+        "--model-config",
         type=str,
-        required = True,
-        help = "Path to the model JSON configuration file"
+        required=True,
+        help="Path to the model JSON configuration file"
     )
     parser.add_argument(
-        "--quant-config", 
-        type = str,
-        required = True,
-        help = "Path to the quantization JSON configuration file"
+        "--quant-config",
+        type=str,
+        required=True,
+        help="Path to the quantization JSON configuration file"
     )
     parser.add_argument(
-        "--quant-config-swap", 
-        type = str,
-        help = "Path to the swap quantization JSON configuration file"
+        "--quant-config-swap",
+        type=str,
+        help="Path to the swap quantization JSON configuration file"
     )
     parser.add_argument(
-        "--layer-swap-config", 
-        type = str,
-        help = "Path to the layer swap JSON configuration file"
+        "--layer-swap-config",
+        type=str,
+        help="Path to the layer swap JSON configuration file"
     )
     parser.add_argument(
         "--swap-every",
-        type = str,
+        type=str,
         nargs="+",
         default=["3/4", "4/4"],
-        help = "Specify which fraction of decoder layers to quantize e.g ['3/4', '4/4'] \
+        help="Specify which fraction of decoder layers to quantize e.g ['3/4', '4/4'] \
                 will quantize the third and fourth quarter of decoders"
     )
     parser.add_argument(
         "--device-map",
-        type = str,
+        type=str,
         default="auto",
-        help = "BitsAndBytes Device Map configuration"
+        help="BitsAndBytes Device Map configuration"
     )
     parser.add_argument(
         "--seed",
