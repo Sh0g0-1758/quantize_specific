@@ -48,22 +48,6 @@ def create_dtype_map() -> Dict[str, torch.device]:
             dtype_map[key] = value
     return dtype_map
 
-def load_config_from_json(
-    json_file: Path,
-    config_type: Literal["model", "quant", "layer_swap"]
-) -> Iterator[QuantConfig]:
-    with open(json_file, "r", encoding="utf-8") as f:
-        configs = json.load(f)
-    if config_type == "model":
-        for config in configs:
-            yield ModelConfig(**config)
-    elif config_type == "quant":
-        for config in configs:
-            yield QuantConfig(**config)
-    elif config_type == "layer_swap":
-        for config in configs:
-            yield LayerSwapConfig(**config)
-
 def generate_decoder_map():
     decoder_map: Dict[str, str] = {
         "llama": "model.layers",
@@ -282,28 +266,3 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     set_seed(args.seed)
-    model_configs = load_config_from_json(Path(args.model_config), config_type="model")
-    for model_config in model_configs:
-        print(f"Model: {model_config}")
-        quant_configs = load_config_from_json(Path(args.quant_config), config_type="quant")
-        for quant_config in quant_configs:
-            print(f"Quantization Config: {quant_config}")
-            base_level = quant_config.level
-            
-            print(f"args.quant_config_swap: {args.quant_config_swap}") 
-            if args.quant_config_swap is not None:
-                quant_config_swaps = load_config_from_json(
-                    Path(args.quant_config_swap),
-                    config_type="quant"
-                )
-                
-                for quant_config_swap in quant_config_swaps:
-                    swap_level = quant_config_swap.level # do not cover previous cases
-                    if swap_level <= base_level:
-                        continue
-                    
-                    if args.layer_swap_config:
-                        layer_swap_configs = load_config_from_json(
-                            Path(args.layer_swap_config), 
-                            config_type="layer_swap"
-                        )
