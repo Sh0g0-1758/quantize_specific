@@ -9,11 +9,9 @@ from typing_extensions import Literal
 import torch
 import numpy as np
 import random
-import os
 
 from transformers import (
     AutoModelForCausalLM,
-    AutoTokenizer,
     BitsAndBytesConfig,
     logging
 )
@@ -23,7 +21,6 @@ logging.set_verbosity_error()
 
 @dataclass
 class QuantConfig:
-    level: Optional[int]
     load_in_4bit: Optional[bool]
     load_in_8bit: Optional[bool]
     bnb_4bit_use_double_quant: Optional[bool]
@@ -68,7 +65,15 @@ def set_seed(seed: int = 42):
     # Avoid non-deterministic optimizations
     torch.backends.cudnn.benchmark = False
 
-
+##
+#  The library essntially creates two models.
+#  It uses quant_config as the configuration for the first model and quant_config_swap as the configuration for the second model.
+#  The library then allows the user to give either a layer_swap_config or a swap_every configuration.
+#  The layer_swap_config is a list of layers that the user wants to swap between the two models.
+#  The swap_every configuration is a list of fractions that the user wants to swap between the two models. It takes a string of the form
+#  'x/y' where x and y are positive integers and represents the portion of layers that the user wants to swap ie. we divide the total
+#  number of layers into y parts and swap the xth part.
+##
 class MemorizationAnalyser:
     def __init__(
         self,
@@ -116,14 +121,6 @@ class MemorizationAnalyser:
                 bnb_4bit_compute_dtype=self.dtype
             )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name,
-            padding_side="left",
-            use_fast=True,
-            clean_up_tokenization_spaces=True
-        )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             quantization_config=self.quant_config,
@@ -166,7 +163,6 @@ class MemorizationAnalyser:
                 device_map=self.device_map
             )
             self.model_swap.eval()
-            self.decoder_map = generate_decoder_map()
 
             try:
                 decoders_1 = eval(f"self.model.{DecoderMap[model_family]}")
@@ -182,8 +178,7 @@ class MemorizationAnalyser:
                     decoders_1[layer] = decoders_2[layer]
 
             elif swap_every:
-                self.swap_every = swap_every
-                for swap in self.swap_every:
+                for swap in swap_every:
                     try:
                         swap = swap.strip()
                         for swap in swap.split():
