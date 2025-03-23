@@ -23,12 +23,6 @@ from transformers import (
 logging.set_verbosity_error()
 
 @dataclass
-class ModelConfig:
-    model_name: str
-    model_family: str
-    model_path: Optional[Path]
-
-@dataclass
 class QuantConfig:
     level: Optional[int]
     load_in_4bit: Optional[bool]
@@ -53,7 +47,6 @@ def create_dtype_map() -> Dict[str, torch.device]:
         for key in keys:
             dtype_map[key] = value
     return dtype_map
-
 
 def load_config_from_json(
     json_file: Path,
@@ -94,22 +87,18 @@ def set_seed(seed: int = 42):
 class MemorizationAnalyser:
     def __init__(
         self,
-        model_config: ModelConfig,
+        model_name: str,
+        model_family: str,
         quant_config: QuantConfig,
         quant_config_swap: Optional[QuantConfig],
         layer_swap_config: Optional[LayerSwapConfig],
         swap_every: Optional[List[str]],
-        dataset_name: str = "legacy-datasets/wikipedia",
-        batch_size: int = 128,
         device_map: Literal["cpu", "auto", "balanced"] = "balanced",
         dtype_map: Dict = create_dtype_map(),
     ):
         if layer_swap_config is not None and swap_every is not None:
             raise ValueError(f"Please specify only one of layer_swap_config or swap_every")
-        self.model_name = model_config.model_name
-        self.dataset_name = dataset_name
         self.dataset = None
-        self.batch_size = batch_size
         self.device_map = device_map
         
         self.dtype_map = dtype_map
@@ -143,7 +132,7 @@ class MemorizationAnalyser:
             )
         
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name,
+            model_name,
             padding_side="left",
             use_fast=True,
             clean_up_tokenization_spaces=True
@@ -151,7 +140,7 @@ class MemorizationAnalyser:
         self.tokenizer.pad_token = self.tokenizer.eos_token
         
         self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name,
+            model_name,
             quantization_config = self.quant_config,
             device_map=self.device_map
         )
@@ -186,7 +175,7 @@ class MemorizationAnalyser:
                 self.load_in_swap = "8bit"
                 
             self.model_swap = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
+                model_name,
                 quantization_config = self.quant_config_swap,
                 device_map=self.device_map
             )
@@ -194,16 +183,16 @@ class MemorizationAnalyser:
             self.decoder_map = generate_decoder_map()
             
             try:
-                decoders_1 = eval(f"self.model.{DecoderMap[model_config.model_family]}")
-                decoders_2 = eval(f"self.model_swap.{DecoderMap[model_config.model_family]}")
+                decoders_1 = eval(f"self.model.{DecoderMap[model_family]}")
+                decoders_2 = eval(f"self.model_swap.{DecoderMap[model_family]}")
             except AttributeError as e:
-                    raise ValueError(f"Unsupported model family '{model_config.model_family}' \
+                    raise ValueError(f"Unsupported model family '{model_family}' \
                         or invalid layer attribute: {e}")
 
             if layer_swap_config:
                 self.layer_swap_config = layer_swap_config
                 self.log_path = (
-                    f"./logs/model={self.model_name}/compute_dtype={self.dtype}/"
+                    f"./logs/model={model_name}/compute_dtype={self.dtype}/"
                     f"load_in={self.load_in}/"
                     f"quantize_specific/swap_dtype={self.dtype_swap}/"
                     f"load_in_swap={self.load_in_swap}/"
@@ -217,7 +206,7 @@ class MemorizationAnalyser:
                 print(f"swap_every: {swap_every}")
                 self.swap_every = swap_every
                 self.log_path = (
-                    f"./logs/model={self.model_name}/compute_dtype={self.dtype}/"
+                    f"./logs/model={model_name}/compute_dtype={self.dtype}/"
                     f"load_in={self.load_in}/"
                     f"quantize_specific/swap_dtype={self.dtype_swap}/"
                     f"load_in_swap={self.load_in_swap}/"
