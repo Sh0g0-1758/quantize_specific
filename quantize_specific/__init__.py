@@ -3,9 +3,7 @@ __author__ = 'vision and language group'
 __credits__ = 'IITR'
 
 from dataclasses import dataclass
-from typing import Optional, Iterator, Dict, List
-import json
-from pathlib import Path
+from typing import Optional, Dict, List
 import argparse
 from typing_extensions import Literal
 import torch
@@ -31,10 +29,6 @@ class QuantConfig:
     bnb_4bit_quant_storage: Optional[torch.dtype]
     bnb_4bit_compute_dtype: Optional[torch.dtype]
     bnb_4bit_quant_type: Optional[str] = None
-
-@dataclass
-class LayerSwapConfig:
-    skip_layers: Optional[List[int]]
 
 def create_dtype_map() -> Dict[str, torch.device]:
     mapping = {
@@ -75,13 +69,14 @@ class MemorizationAnalyser:
         model_family: str,
         quant_config: QuantConfig,
         quant_config_swap: Optional[QuantConfig],
-        layer_swap_config: Optional[LayerSwapConfig],
+        layer_swap_config: Optional[List[int]],
         swap_every: Optional[List[str]],
         device_map: Literal["cpu", "auto", "balanced"] = "balanced",
         dtype_map: Dict = create_dtype_map(),
     ):
         if layer_swap_config is not None and swap_every is not None:
             raise ValueError(f"Please specify only one of layer_swap_config or swap_every")
+
         self.dataset = None
         self.device_map = device_map
         
