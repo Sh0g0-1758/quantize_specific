@@ -5,8 +5,8 @@ An example python library.
 """
 
 __version__ = "0.0.1"
-__author__ = 'Shourya Goel'
-__credits__ = 'VLG'
+__author__ = 'vision and language group'
+__credits__ = 'IITR'
 
 from dataclasses import dataclass
 from typing import Optional, Iterator, Dict, List
