@@ -85,11 +85,9 @@ class MemorizationAnalyser:
             raise ValueError(
                 f"Please specify only one of layer_swap_config or swap_every")
 
-        self.dataset = None
         self.device_map = device_map
 
-        self.dtype_map = dtype_map
-        self.dtype = self.dtype_map[quant_config.bnb_4bit_compute_dtype]
+        self.dtype = dtype_map[quant_config.bnb_4bit_compute_dtype]
 
         self.load_in = "fp32"
         if quant_config.load_in_4bit:
@@ -134,7 +132,7 @@ class MemorizationAnalyser:
         self.model.eval()
 
         if quant_config_swap and (layer_swap_config or swap_every):
-            self.dtype_swap = self.dtype_map[quant_config_swap.bnb_4bit_compute_dtype]
+            self.dtype_swap = dtype_map[quant_config_swap.bnb_4bit_compute_dtype]
 
             if quant_config.bnb_4bit_quant_type:
                 self.quant_config_swap = BitsAndBytesConfig(
@@ -180,29 +178,11 @@ class MemorizationAnalyser:
 
             if layer_swap_config:
                 self.layer_swap_config = layer_swap_config
-                self.log_path = (
-                    f"./logs/model={model_name}/compute_dtype={self.dtype}/"
-                    f"load_in={self.load_in}/"
-                    f"quantize_specific/swap_dtype={self.dtype_swap}/"
-                    f"load_in_swap={self.load_in_swap}/"
-                    f"layer_swap_config={layer_swap_config}"
-                )
-                os.makedirs(self.log_path, exist_ok=True)
                 for layer in self.layer_swap_config.skip_layers:
                     decoders_1[layer] = decoders_2[layer]
 
             elif swap_every:
-                print(f"swap_every: {swap_every}")
                 self.swap_every = swap_every
-                self.log_path = (
-                    f"./logs/model={model_name}/compute_dtype={self.dtype}/"
-                    f"load_in={self.load_in}/"
-                    f"quantize_specific/swap_dtype={self.dtype_swap}/"
-                    f"load_in_swap={self.load_in_swap}/"
-                    f"swap_every={'_'.join(s.replace(' ', '_').replace('/', '%') for s in swap_every)}"
-                )
-                print(f"log_path: {self.log_path}")
-                os.makedirs(self.log_path, exist_ok=True)
                 for swap in self.swap_every:
                     try:
                         swap = swap.strip()
